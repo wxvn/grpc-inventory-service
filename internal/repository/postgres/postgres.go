@@ -111,3 +111,41 @@ func (repository *Repository) GetProducts(ctx context.Context, limit, offset int
 	return products, nil
 
 }
+
+func (repository *Repository) UpdateStockProduct(ctx context.Context, id int, stock int32) (domain.Product, error) {
+	query := `
+	UPDATE product
+	SET stock = $2
+	WHERE id = $1
+	RETURNING *;
+	`
+
+	var updated domain.Product
+
+	err := repository.pool.QueryRow(ctx, query, id, stock).Scan(
+		&updated.ID,
+		&updated.Name,
+		&updated.Description,
+		&updated.Price,
+		&updated.Stock,
+	)
+	if err != nil {
+		return domain.Product{}, err
+	}
+
+	return updated, nil
+}
+
+func (repository *Repository) DeleteProduct(ctx context.Context, id int) error {
+	query := `
+	DELETE FROM product
+	WHERE id = $1;
+	`
+
+	_, err := repository.pool.Exec(ctx, query, id)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

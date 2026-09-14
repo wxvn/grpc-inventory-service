@@ -16,6 +16,8 @@ type Repository interface {
 	CreateProduct(ctx context.Context, p domain.Product) (domain.Product, error)
 	GetProductByID(ctx context.Context, id int) (domain.Product, error)
 	GetProducts(ctx context.Context, limit, offset int) ([]domain.Product, error)
+	UpdateStockProduct(ctx context.Context, id int, stock int32) (domain.Product, error)
+	DeleteProduct(ctx context.Context, id int) error
 }
 
 func New(repo Repository, logger *slog.Logger) *Service {
@@ -74,4 +76,64 @@ func (s *Service) GetProducts(ctx context.Context, page, pageSize int32) ([]doma
 
 	return products, nil
 
+}
+
+func (s *Service) UpdateStockProduct(ctx context.Context, id int, quantity int32) (domain.Product, error) {
+	product, err := s.repository.GetProductByID(ctx, id)
+	if err != nil {
+		s.log.Error(
+			"failed to get product",
+			slog.Int("id", id),
+			slog.String("error", err.Error()),
+		)
+		return domain.Product{}, err
+	}
+	stock := product.Stock + quantity
+	if stock < 0 {
+		stock = 0
+	}
+
+	updateProduct, err := s.repository.UpdateStockProduct(ctx, id, stock)
+	if err != nil {
+		s.log.Error(
+			"failed update product",
+			slog.Int("id", id),
+			slog.Int("stock", int(stock)),
+			slog.String("error", err.Error()),
+		)
+		return domain.Product{}, err
+	}
+
+	return updateProduct, nil
+}
+
+func (s *Service) DeleteProduct(ctx context.Context, id int) error {
+	err := s.repository.DeleteProduct(ctx, id)
+	if err != nil {
+		s.log.Error(
+			"failed delete product",
+			slog.Int("id", id),
+			slog.String("error", err.Error()),
+		)
+		return err
+	}
+	return nil
+}
+
+func (s *Service) CheckAvailability(ctx context.Context, id int, quantity int32) (bool, int32, error) {
+	product, err := s.repository.GetProductByID(ctx, id)
+	if err != nil {
+		s.log.Error(
+			"failed to get product",
+			slog.Int("id", id),
+			slog.String("error", err.Error()),
+		)
+		return false, 0, err
+	}
+
+	if product.Stock < quantity {
+		return false, product.Stock, nil
+	}
+
+	return true, product.Stock, nil
 }
